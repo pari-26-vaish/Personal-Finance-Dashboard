@@ -35,11 +35,16 @@
 
 ---
 
-## 🖼️ Preview
->_Screenshot coming soon_
->
-> ![Dashboard Preview](assets/p1.png)
-> ![Dashboard Preview](assets/p3.png)
+## 📸 Preview
+
+
+
+![Dashboard Preview](assets/p1.png)
+
+
+
+
+![Dashboard Preview](assets/p3.png)
 
 ---
 
