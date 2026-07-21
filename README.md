@@ -36,12 +36,10 @@
 ---
 
 ## 🖼️ Preview
-
-> _Add a screenshot or GIF of your dashboard here for a quick visual preview._
+>_Screenshot coming soon_
 >
-> ```md
-> ![Dashboard Preview](assets/preview.png)
-> ```
+> ![Dashboard Preview](assets/p1.png)
+> ![Dashboard Preview](assets/p3.png)
 
 ---
 
