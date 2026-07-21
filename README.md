@@ -39,12 +39,12 @@
 
 
 
-![Dashboard Preview](assets/p1.png)
+![Dashboard Preview](p1.png)
 
 
 
 
-![Dashboard Preview](assets/p3.png)
+![Dashboard Preview](p3.png)
 
 ---
 
