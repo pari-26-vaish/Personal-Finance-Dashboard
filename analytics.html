@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics · Finance Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body data-page="analytics">
+
+<nav class="navbar navbar-expand-lg sticky-top app-navbar">
+    <div class="container-fluid px-3 px-md-4">
+        <div class="d-flex align-items-center">
+            <a class="btn btn-icon me-1" href="index.html" title="Back to Home"><i class="bi bi-house-door"></i></a>
+            <a class="navbar-brand fw-bold mb-0" href="dashboard.html"><i class="bi bi-wallet2 me-2"></i>Finance Dashboard</a>
+        </div>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMenu">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" href="transaction.html">Transactions</a></li>
+                <li class="nav-item"><a class="nav-link" href="analytics.html">Analytics</a></li>
+                <li class="nav-item"><a class="nav-link" href="settings.html">Settings</a></li>
+            </ul>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-icon" id="themeToggle" title="Toggle dark mode"><i class="bi bi-moon-stars-fill"></i></button>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle"></i> <span id="userGreeting">Guest</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="login.html" id="loginLink">Log in</a></li>
+                        <li><a class="dropdown-item" href="#" id="logoutLink" style="display:none;">Log out</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid px-3 px-md-4 py-4">
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-block">
+                <div class="stat-label">Avg Monthly Spend</div>
+                <div class="stat-value" id="statAvgMonthly">₹0.00</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-block">
+                <div class="stat-label">Highest Expense</div>
+                <div class="stat-value" id="statHighestExpense" style="font-size:1rem;">—</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-block">
+                <div class="stat-label">Total Transactions</div>
+                <div class="stat-value" id="statTransactionCount">0</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-block">
+                <div class="stat-label">Income Entries</div>
+                <div class="stat-value" id="statIncomeCount">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">Expense by Category</h6>
+                    <canvas id="categoryPieChart" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">Monthly Income vs Expense</h6>
+                    <canvas id="monthlyBarChart" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">Balance Trend</h6>
+                    <canvas id="trendChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">Top Spending Categories</h6>
+                    <div id="topCategoriesList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script>
+    /* ================= CONSTANTS ================= */
+    const DEFAULT_CATEGORIES = ["Food","Shopping","Transport","Bills","Entertainment","Health","Salary","Freelancing","Other"];
+    const KEYS = {
+      transactions: "pfd_transactions",
+      theme: "pfd_theme",
+      user: "pfd_user",
+      customCategories: "pfd_custom_categories",
+      currency: "pfd_currency",
+    };
+
+    let transactions = [];
+    let editingId = null;
+    let pieChart = null;
+    let barChart = null;
+    let trendChart = null;
+
+    /* ================= STORAGE HELPERS ================= */
+    function loadTransactions() {
+      try {
+        const raw = localStorage.getItem(KEYS.transactions);
+        return raw ? JSON.parse(raw) : seedData();
+      } catch (e) { console.error(e); return []; }
+    }
+    function saveTransactions() {
+      try { localStorage.setItem(KEYS.transactions, JSON.stringify(transactions)); }
+      catch (e) { console.error(e); showToast("Couldn't save data locally.", "danger"); }
+    }
+    function seedData() {
+      const today = new Date();
+      const iso = (d) => d.toISOString().slice(0, 10);
+      return [
+        { id: crypto.randomUUID(), type: "income", description: "Monthly Salary", category: "Salary", amount: 45000, date: iso(today) },
+        { id: crypto.randomUUID(), type: "expense", description: "Groceries", category: "Food", amount: 2200, date: iso(today) },
+        { id: crypto.randomUUID(), type: "expense", description: "Electricity Bill", category: "Bills", amount: 1400, date: iso(today) },
+        { id: crypto.randomUUID(), type: "expense", description: "Movie Night", category: "Entertainment", amount: 600, date: iso(today) },
+      ];
+    }
+
+    function getCustomCategories() {
+      try { return JSON.parse(localStorage.getItem(KEYS.customCategories)) || []; }
+      catch (e) { return []; }
+    }
+    function saveCustomCategories(list) {
+      localStorage.setItem(KEYS.customCategories, JSON.stringify(list));
+    }
+    function getAllCategories() {
+      return [...DEFAULT_CATEGORIES, ...getCustomCategories()];
+    }
+
+    function getCurrency() { return localStorage.getItem(KEYS.currency) || "₹"; }
+    function setCurrency(symbol) { localStorage.setItem(KEYS.currency, symbol); }
+
+    function getUser() {
+      try { return JSON.parse(localStorage.getItem(KEYS.user)); }
+      catch (e) { return null; }
+    }
+    function setUser(user) { localStorage.setItem(KEYS.user, JSON.stringify(user)); }
+    function clearUser() { localStorage.removeItem(KEYS.user); }
+
+    /* ================= INIT ================= */
+    document.addEventListener("DOMContentLoaded", () => {
+      try {
+        transactions = loadTransactions();
+        applySavedTheme();
+        initNavbar();
+        bindGlobalEvents();
+      } catch (err) {
+        console.error("Core init failed:", err);
+      }
+
+      const page = document.body.dataset.page;
+      try {
+        if (page === "login") initLoginPage();
+        if (page === "dashboard") initDashboardPage();
+        if (page === "transactions") initTransactionsPage();
+        if (page === "analytics") initAnalyticsPage();
+        if (page === "settings") initSettingsPage();
+      } catch (err) {
+        console.error(`Page init failed for "${page}":`, err);
+      }
+    });
+
+    /* ================= NAVBAR (shared across pages) ================= */
+    function initNavbar() {
+      const path = location.pathname.split("/").pop() || "dashboard.html";
+      document.querySelectorAll(".navbar-nav .nav-link").forEach(link => {
+        if (link.getAttribute("href") === path) link.classList.add("active");
+      });
+
+      const user = getUser();
+      const greetingEl = document.getElementById("userGreeting");
+      const loginLink = document.getElementById("loginLink");
+      const logoutLink = document.getElementById("logoutLink");
+      if (greetingEl) greetingEl.textContent = user?.name || "Guest";
+      if (loginLink) loginLink.style.display = user ? "none" : "block";
+      if (logoutLink) {
+        logoutLink.style.display = user ? "block" : "none";
+        logoutLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          clearUser();
+          showToast("Logged out.", "secondary");
+          setTimeout(() => location.href = "login.html", 600);
+        });
+      }
+    }
+
+    function bindGlobalEvents() {
+      const themeBtn = document.getElementById("themeToggle");
+      if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+    }
+
+    /* ================= THEME ================= */
+    function applySavedTheme() {
+      const saved = localStorage.getItem(KEYS.theme) || "light";
+      document.documentElement.setAttribute("data-bs-theme", saved);
+      updateThemeIcon(saved);
+    }
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-bs-theme");
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-bs-theme", next);
+      localStorage.setItem(KEYS.theme, next);
+      updateThemeIcon(next);
+    }
+    function updateThemeIcon(theme) {
+      document.querySelectorAll("#themeToggle i").forEach(icon => {
+        icon.className = theme === "dark" ? "bi bi-sun-fill" : "bi bi-moon-stars-fill";
+      });
+    }
+
+    /* ================= LOGIN PAGE ================= */
+    function initLoginPage() {
+      const form = document.getElementById("loginForm");
+      const guestBtn = document.getElementById("guestBtn");
+
+      if (getUser()) { location.href = "dashboard.html"; return; }
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = document.getElementById("loginName").value.trim();
+        if (!name) return;
+        setUser({ name });
+        location.href = "dashboard.html";
+      });
+
+      guestBtn.addEventListener("click", () => {
+        clearUser();
+        location.href = "dashboard.html";
+      });
+    }
+
+    /* ================= CATEGORY DROPDOWNS ================= */
+    function populateCategorySelect(selectEl, includeAllOption = false) {
+      if (!selectEl) return;
+      selectEl.innerHTML = includeAllOption ? `<option value="all">All Categories</option>` : "";
+      getAllCategories().forEach(cat => {
+        selectEl.insertAdjacentHTML("beforeend", `<option value="${cat}">${cat}</option>`);
+      });
+    }
+
+    /* ================= FORMAT ================= */
+    function fmt(n) {
+      return getCurrency() + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /* ================= TRANSACTION CRUD (shared) ================= */
+    function bindTransactionForm() {
+      const form = document.getElementById("transactionForm");
+      if (!form) return;
+      populateCategorySelect(document.getElementById("category"));
+      document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+      form.addEventListener("submit", handleFormSubmit);
+      const modalEl = document.getElementById("transactionModal");
+      if (modalEl) modalEl.addEventListener("hidden.bs.modal", resetForm);
+      const addBtn = document.getElementById("addTransactionBtn");
+      if (addBtn) addBtn.addEventListener("click", () => openModal());
+    }
+
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      const data = {
+        type: document.querySelector('input[name="type"]:checked').value,
+        description: document.getElementById("description").value.trim(),
+        amount: parseFloat(document.getElementById("amount").value),
+        date: document.getElementById("date").value,
+        category: document.getElementById("category").value,
+      };
+      if (!data.description || isNaN(data.amount) || data.amount <= 0) {
+        showToast("Please fill all fields correctly.", "danger");
+        return;
+      }
+      if (editingId) {
+        const idx = transactions.findIndex(t => t.id === editingId);
+        transactions[idx] = { ...transactions[idx], ...data };
+        showToast("Transaction updated.", "success");
+      } else {
+        transactions.push({ id: crypto.randomUUID(), ...data });
+        showToast("Transaction added.", "success");
+      }
+      saveTransactions();
+      refreshCurrentPage();
+      bootstrap.Modal.getInstance(document.getElementById("transactionModal")).hide();
+    }
+
+    function openModal(transaction = null) {
+      const modalTitle = document.getElementById("modalTitle");
+      if (transaction) {
+        editingId = transaction.id;
+        modalTitle.textContent = "Edit Transaction";
+        document.getElementById("description").value = transaction.description;
+        document.getElementById("amount").value = transaction.amount;
+        document.getElementById("date").value = transaction.date;
+        document.getElementById("category").value = transaction.category;
+        document.getElementById(transaction.type === "income" ? "typeIncome" : "typeExpense").checked = true;
+      } else {
+        editingId = null;
+        modalTitle.textContent = "Add Transaction";
+      }
+      new bootstrap.Modal(document.getElementById("transactionModal")).show();
+    }
+
+    function deleteTransaction(id) {
+      if (!confirm("Delete this transaction?")) return;
+      transactions = transactions.filter(t => t.id !== id);
+      saveTransactions();
+      refreshCurrentPage();
+      showToast("Transaction deleted.", "secondary");
+    }
+
+    function editTransactionById(id) {
+      const t = transactions.find(t => t.id === id);
+      if (t) openModal(t);
+    }
+
+    function resetForm() {
+      const form = document.getElementById("transactionForm");
+      if (!form) return;
+      form.reset();
+      document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+      editingId = null;
+    }
+
+    function refreshCurrentPage() {
+      const page = document.body.dataset.page;
+      if (page === "dashboard") renderDashboard();
+      if (page === "transactions") renderTransactionsTable();
+      if (page === "analytics") renderAnalytics();
+    }
+
+    /* ================= DASHBOARD PAGE ================= */
+    function initDashboardPage() {
+      bindTransactionForm();
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      renderSummaryCards();
+      renderMonthlySummary();
+      renderChart("categoryPieChart", "pie");
+      renderChart("monthlyBarChart", "bar");
+      renderRecentTransactions();
+    }
+
+    function renderSummaryCards() {
+      const income = transactions.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
+      const expense = transactions.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+      const balance = income - expense;
+      const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      set("totalBalance", fmt(balance));
+      set("totalIncome", fmt(income));
+      set("totalExpenses", fmt(expense));
+      set("totalSavings", savingsRate + "%");
+    }
+
+    function renderMonthlySummary() {
+      const container = document.getElementById("monthlySummary");
+      if (!container) return;
+      const byMonth = groupByMonth();
+      const months = Object.keys(byMonth).sort().reverse().slice(0, 4);
+      if (months.length === 0) { container.innerHTML = `<p class="text-secondary mb-0">No data yet.</p>`; return; }
+      container.innerHTML = months.map(m => {
+        const { income, expense } = byMonth[m];
+        const label = new Date(m + "-01").toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        return `<div class="col-6 col-md-3"><div class="month-chip">
+          <div class="label">${label}</div>
+          <div class="val amount-income">+${fmt(income)}</div>
+          <div class="val amount-expense">-${fmt(expense)}</div>
+        </div></div>`;
+      }).join("");
+    }
+
+    function renderRecentTransactions() {
+      const tbody = document.getElementById("recentTransactionsBody");
+      if (!tbody) return;
+      const recent = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+      if (recent.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-secondary py-4">No transactions yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = recent.map(t => `
+        <tr>
+          <td>${new Date(t.date).toLocaleDateString("en-US", { day:"2-digit", month:"short" })}</td>
+          <td>${escapeHtml(t.description)}</td>
+          <td><span class="badge text-bg-secondary-subtle text-body badge-category">${t.category}</span></td>
+          <td class="text-end ${t.type === 'income' ? 'amount-income' : 'amount-expense'}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</td>
+        </tr>`).join("");
+    }
+
+    /* ================= TRANSACTIONS PAGE ================= */
+    function initTransactionsPage() {
+      bindTransactionForm();
+      populateCategorySelect(document.getElementById("categoryFilter"), true);
+      ["searchInput","typeFilter","categoryFilter","sortOrder"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(el.tagName === "SELECT" ? "change" : "input", renderTransactionsTable);
+      });
+      const exportBtn = document.getElementById("exportCsvBtn");
+      if (exportBtn) exportBtn.addEventListener("click", exportCsv);
+      renderTransactionsTable();
+    }
+
+    function getFilteredTransactions() {
+      const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
+      const typeFilter = document.getElementById("typeFilter")?.value || "all";
+      const categoryFilter = document.getElementById("categoryFilter")?.value || "all";
+      const sortOrder = document.getElementById("sortOrder")?.value || "desc";
+
+      let result = transactions.filter(t => {
+        const matchesSearch = t.description.toLowerCase().includes(search) || t.category.toLowerCase().includes(search);
+        const matchesType = typeFilter === "all" || t.type === typeFilter;
+        const matchesCategory = categoryFilter === "all" || t.category === categoryFilter;
+        return matchesSearch && matchesType && matchesCategory;
+      });
+      result.sort((a, b) => sortOrder === "asc" ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date));
+      return result;
+    }
+
+    function renderTransactionsTable() {
+      const list = getFilteredTransactions();
+      const tbody = document.getElementById("transactionsBody");
+      const emptyState = document.getElementById("emptyState");
+      if (!tbody) return;
+
+      if (list.length === 0) {
+        tbody.innerHTML = "";
+        if (emptyState) emptyState.classList.remove("d-none");
+        return;
+      }
+      if (emptyState) emptyState.classList.add("d-none");
+
+      tbody.innerHTML = list.map(t => `
+        <tr>
+          <td>${new Date(t.date).toLocaleDateString("en-US", { day:"2-digit", month:"short", year:"numeric" })}</td>
+          <td>${escapeHtml(t.description)}</td>
+          <td><span class="badge text-bg-secondary-subtle text-body badge-category">${t.category}</span></td>
+          <td><span class="badge ${t.type === 'income' ? 'text-bg-success-subtle text-success' : 'text-bg-danger-subtle text-danger'} text-capitalize">${t.type}</span></td>
+          <td class="text-end ${t.type === 'income' ? 'amount-income' : 'amount-expense'}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-icon" onclick="editTransactionById('${t.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-icon text-danger" onclick="deleteTransaction('${t.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>`).join("");
+    }
+
+    function exportCsv() {
+      if (transactions.length === 0) { showToast("No transactions to export.", "secondary"); return; }
+      const header = ["Date", "Description", "Category", "Type", "Amount"];
+      const rows = transactions.map(t => [t.date, t.description, t.category, t.type, t.amount]);
+      const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `transactions_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("CSV exported.", "success");
+}
+
+/* ================= ANALYTICS PAGE ================= */
+function initAnalyticsPage() {
+  renderAnalytics();
+}
+
+function groupByMonth() {
+  const byMonth = {};
+  transactions.forEach(t => {
+    const key = t.date.slice(0, 7);
+    if (!byMonth[key]) byMonth[key] = { income: 0, expense: 0 };
+    byMonth[key][t.type] += t.amount;
+  });
+  return byMonth;
+}
+
+function renderAnalytics() {
+  renderChart("categoryPieChart", "pie");
+  renderChart("monthlyBarChart", "bar");
+  renderTrendChart();
+  renderTopCategories();
+  renderAnalyticsStats();
+}
+
+function renderTrendChart() {
+  const canvas = document.getElementById("trendChart");
+  if (!canvas) return;
+  const byMonth = groupByMonth();
+  const months = Object.keys(byMonth).sort();
+  let running = 0;
+  const balances = months.map(m => { running += byMonth[m].income - byMonth[m].expense; return running; });
+  const labels = months.map(m => new Date(m + "-01").toLocaleDateString("en-US", { month: "short", year: "2-digit" }));
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(canvas, {
+    type: "line",
+    data: { labels, datasets: [{ label: "Balance", data: balances, borderColor: "#4361ee", backgroundColor: "rgba(67,97,238,0.15)", fill: true, tension: 0.3 }] },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+}
+
+function renderTopCategories() {
+  const container = document.getElementById("topCategoriesList");
+  if (!container) return;
+  const byCategory = {};
+  transactions.filter(t => t.type === "expense").forEach(t => { byCategory[t.category] = (byCategory[t.category] || 0) + t.amount; });
+  const total = Object.values(byCategory).reduce((a, b) => a + b, 0);
+  const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  if (sorted.length === 0) { container.innerHTML = `<p class="text-secondary mb-0">No expenses recorded yet.</p>`; return; }
+
+  container.innerHTML = sorted.map(([cat, amt]) => {
+    const pct = total > 0 ? Math.round((amt / total) * 100) : 0;
+    return `<div class="rank-row">
+      <span>${cat}</span>
+      <span class="text-secondary">${pct}% · ${fmt(amt)}</span>
+    </div>`;
+  }).join("");
+}
+
+function renderAnalyticsStats() {
+  const expenses = transactions.filter(t => t.type === "expense");
+  const income = transactions.filter(t => t.type === "income");
+  const totalExpense = expenses.reduce((s, t) => s + t.amount, 0);
+  const byMonth = groupByMonth();
+  const monthCount = Object.keys(byMonth).length || 1;
+  const avgMonthly = totalExpense / monthCount;
+  const highest = expenses.sort((a, b) => b.amount - a.amount)[0];
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set("statAvgMonthly", fmt(avgMonthly));
+  set("statHighestExpense", highest ? `${fmt(highest.amount)} · ${highest.description}` : "—");
+  set("statTransactionCount", transactions.length);
+  set("statIncomeCount", income.length);
+}
+
+/* ================= SHARED CHART RENDERER ================= */
+function renderChart(canvasId, kind) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const wrapper = canvas.closest(".card-body");
+  let emptyMsg = wrapper?.querySelector(".chart-empty-msg");
+
+  if (transactions.length === 0) {
+    canvas.style.display = "none";
+    if (wrapper && !emptyMsg) {
+      emptyMsg = document.createElement("p");
+      emptyMsg.className = "chart-empty-msg text-secondary text-center py-5 mb-0";
+      emptyMsg.innerHTML = '<i class="bi bi-bar-chart fs-2 d-block mb-2"></i>No data yet — add a transaction to see this chart.';
+      wrapper.appendChild(emptyMsg);
+    }
+    return;
+  } else {
+    canvas.style.display = "block";
+    if (emptyMsg) emptyMsg.remove();
+  }
+
+  if (kind === "pie") {
+    const byCategory = {};
+    transactions.filter(t => t.type === "expense").forEach(t => { byCategory[t.category] = (byCategory[t.category] || 0) + t.amount; });
+    const labels = Object.keys(byCategory);
+    const data = Object.values(byCategory);
+    const colors = ["#4361ee","#f72585","#4cc9f0","#ff9f1c","#7209b7","#2ec4b6","#e63946","#ffbe0b","#8d99ae"];
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(canvas, {
+      type: "pie",
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+      options: { responsive: true, plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } } }
+    });
+  }
+
+  if (kind === "bar") {
+    const byMonth = groupByMonth();
+    const months = Object.keys(byMonth).sort();
+    const labels = months.map(m => new Date(m + "-01").toLocaleDateString("en-US", { month: "short" }));
+    const incomeData = months.map(m => byMonth[m].income);
+    const expenseData = months.map(m => byMonth[m].expense);
+    if (barChart) barChart.destroy();
+    barChart = new Chart(canvas, {
+      type: "bar",
+      data: { labels, datasets: [
+        { label: "Income", data: incomeData, backgroundColor: "#2ec4b6", borderRadius: 6 },
+        { label: "Expense", data: expenseData, backgroundColor: "#e63946", borderRadius: 6 },
+      ]},
+      options: { responsive: true, plugins: { legend: { position: "bottom" } }, scales: { y: { beginAtZero: true } } }
+    });
+  }
+}
+
+/* ================= SETTINGS PAGE ================= */
+function initSettingsPage() {
+  const themeSelect = document.getElementById("themeSelect");
+  if (themeSelect) {
+    themeSelect.value = localStorage.getItem(KEYS.theme) || "light";
+    themeSelect.addEventListener("change", () => {
+      document.documentElement.setAttribute("data-bs-theme", themeSelect.value);
+      localStorage.setItem(KEYS.theme, themeSelect.value);
+      updateThemeIcon(themeSelect.value);
+    });
+  }
+
+  const currencySelect = document.getElementById("currencySelect");
+  if (currencySelect) {
+    currencySelect.value = getCurrency();
+    currencySelect.addEventListener("change", () => {
+      setCurrency(currencySelect.value);
+      showToast("Currency updated.", "success");
+    });
+  }
+
+  renderCategoryChips();
+  const addCatForm = document.getElementById("addCategoryForm");
+  if (addCatForm) {
+    addCatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = document.getElementById("newCategoryInput");
+      const val = input.value.trim();
+      if (!val) return;
+      const custom = getCustomCategories();
+      if (getAllCategories().map(c => c.toLowerCase()).includes(val.toLowerCase())) {
+        showToast("Category already exists.", "danger");
+        return;
+      }
+      custom.push(val);
+      saveCustomCategories(custom);
+      input.value = "";
+      renderCategoryChips();
+      showToast("Category added.", "success");
+    });
+  }
+
+  const exportJsonBtn = document.getElementById("exportJsonBtn");
+  if (exportJsonBtn) exportJsonBtn.addEventListener("click", exportJson);
+
+  const importInput = document.getElementById("importJsonInput");
+  if (importInput) importInput.addEventListener("change", importJson);
+
+  const clearBtn = document.getElementById("clearDataBtn");
+  if (clearBtn) clearBtn.addEventListener("click", clearAllData);
+
+  const sampleBtn = document.getElementById("loadSampleBtn");
+  if (sampleBtn) sampleBtn.addEventListener("click", loadSampleData);
+
+  renderAccountSection();
+}
+
+function renderCategoryChips() {
+  const container = document.getElementById("categoryChips");
+  if (!container) return;
+  const custom = getCustomCategories();
+  container.innerHTML = DEFAULT_CATEGORIES.map(c => `<span class="category-chip">${c}</span>`).join("") +
+    custom.map(c => `<span class="category-chip">${c} <span class="chip-remove" onclick="removeCategory('${c}')">✕</span></span>`).join("");
+}
+
+function removeCategory(cat) {
+  const custom = getCustomCategories().filter(c => c !== cat);
+  saveCustomCategories(custom);
+  renderCategoryChips();
+  showToast("Category removed.", "secondary");
+}
+
+function exportJson() {
+  const blob = new Blob([JSON.stringify(transactions, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `finance_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("Backup exported.", "success");
+}
+
+function importJson(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      if (!Array.isArray(data)) throw new Error("Invalid format");
+      transactions = data;
+      saveTransactions();
+      showToast("Backup imported.", "success");
+    } catch (err) {
+      showToast("Invalid backup file.", "danger");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+}
+
+function clearAllData() {
+  if (!confirm("This will permanently delete all transactions. Continue?")) return;
+  transactions = [];
+  saveTransactions();
+  showToast("All data cleared.", "secondary");
+}
+
+function loadSampleData() {
+  if (transactions.length > 0 && !confirm("This will replace your current transactions with sample data. Continue?")) return;
+  transactions = seedData();
+  saveTransactions();
+  showToast("Sample data loaded.", "success");
+}
+
+function renderAccountSection() {
+  const user = getUser();
+  const nameEl = document.getElementById("accountName");
+  const statusEl = document.getElementById("accountStatus");
+  const actionBtn = document.getElementById("accountActionBtn");
+  if (!nameEl) return;
+
+  if (user) {
+    nameEl.textContent = user.name;
+    statusEl.textContent = "Logged in";
+    actionBtn.textContent = "Log out";
+    actionBtn.onclick = () => { clearUser(); location.href = "login.html"; };
+  } else {
+    nameEl.textContent = "Guest";
+    statusEl.textContent = "Not logged in";
+    actionBtn.textContent = "Log in";
+    actionBtn.onclick = () => location.href = "login.html";
+  }
+}
+
+/* ================= TOASTS ================= */
+function showToast(message, type = "primary") {
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+  const id = "t" + Date.now();
+  container.insertAdjacentHTML("beforeend", `
+    <div id="${id}" class="toast align-items-center text-bg-${type} border-0" role="alert">
+      <div class="d-flex">
+        <div class="toast-body">${message}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>`);
+  const toastEl = document.getElementById(id);
+  const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+  toast.show();
+  toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+}
+
+</script>
+</body>
+</html>

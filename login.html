@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log In · Finance Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body data-page="login">
+
+<div class="auth-wrapper">
+    <div class="w-100" style="max-width:400px;">
+        <a href="index.html" class="back-home-link"><i class="bi bi-arrow-left"></i> Back to Home</a>
+    </div>
+    <div class="card auth-card border-0 shadow-sm">
+        <div class="card-body p-4 p-md-5">
+            <div class="auth-icon bg-primary-subtle text-primary">
+                <i class="bi bi-wallet2"></i>
+            </div>
+            <h4 class="text-center fw-bold mb-1">Welcome back</h4>
+            <p class="text-center text-secondary mb-4">Log in to sync your dashboard greeting.</p>
+
+            <form id="loginForm">
+                <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <input type="text" class="form-control" id="loginName" placeholder="  " required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-control" placeholder=" ">
+                    <div class="form-text">This demo doesn't verify passwords — data stays on your device.</div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 mb-2">Log In</button>
+                <button type="button" class="btn btn-outline-secondary w-100" id="guestBtn">Continue as Guest</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>
+    const DEFAULT_CATEGORIES = ["Food","Shopping","Transport","Bills","Entertainment","Health","Salary","Freelancing","Other"];
+    const KEYS = {
+      transactions: "pfd_transactions",
+      theme: "pfd_theme",
+      user: "pfd_user",
+      customCategories: "pfd_custom_categories",
+      currency: "pfd_currency",
+    };
+
+    let transactions = [];
+    let editingId = null;
+
+    function loadTransactions() {
+      try {
+        const raw = localStorage.getItem(KEYS.transactions);
+        return raw ? JSON.parse(raw) : seedData();
+      } catch (e) { console.error(e); return []; }
+    }
+    function saveTransactions() {
+      try { localStorage.setItem(KEYS.transactions, JSON.stringify(transactions)); }
+      catch (e) { console.error(e); }
+    }
+    function seedData() {
+      const today = new Date();
+      const iso = (d) => d.toISOString().slice(0, 10);
+      return [
+        { id: crypto.randomUUID(), type: "income", description: "Monthly Salary", category: "Salary", amount: 45000, date: iso(today) },
+        { id: crypto.randomUUID(), type: "expense", description: "Groceries", category: "Food", amount: 2200, date: iso(today) },
+        { id: crypto.randomUUID(), type: "expense", description: "Electricity Bill", category: "Bills", amount: 1400, date: iso(today) },
+        { id: crypto.randomUUID(), type: "expense", description: "Movie Night", category: "Entertainment", amount: 600, date: iso(today) },
+      ];
+    }
+
+    function getUser() {
+      try { return JSON.parse(localStorage.getItem(KEYS.user)); }
+      catch (e) { return null; }
+    }
+    function setUser(user) { localStorage.setItem(KEYS.user, JSON.stringify(user)); }
+    function clearUser() { localStorage.removeItem(KEYS.user); }
+
+    function applySavedTheme() {
+      const saved = localStorage.getItem(KEYS.theme) || "light";
+      document.documentElement.setAttribute("data-bs-theme", saved);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      applySavedTheme();
+      transactions = loadTransactions();
+
+      if (getUser()) { location.href = "dashboard.html"; return; }
+
+      const form = document.getElementById("loginForm");
+      const guestBtn = document.getElementById("guestBtn");
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = document.getElementById("loginName").value.trim();
+        if (!name) return;
+        setUser({ name });
+        location.href = "dashboard.html";
+      });
+
+      guestBtn.addEventListener("click", () => {
+        clearUser();
+        location.href = "dashboard.html";
+      });
+    });
+</script>
+</body>
+</html>

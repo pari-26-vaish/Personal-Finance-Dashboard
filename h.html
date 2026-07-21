@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transactions</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="container py-4">
+    <h3 class="mb-4">My Transactions</h3>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="mb-3">Add Transaction</h6>
+            <form id="txForm">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <select class="form-select" id="type" required>
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" id="description" placeholder="Description" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" class="form-control" id="amount" placeholder="Amount" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" class="form-control" id="date" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Add</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h6 class="mb-3">All Transactions</h6>
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th class="text-end">Amount</th>
+                    <th class="text-end">Action</th>
+                </tr>
+                </thead>
+                <tbody id="txTableBody"></tbody>
+            </table>
+            <p id="emptyMsg" class="text-muted text-center py-3" style="display:none;">No transactions yet. Add one above.</p>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>
+    let transactions = JSON.parse(localStorage.getItem("myTransactions")) || [];
+
+    document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+
+    renderTable();
+
+    document.getElementById("txForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const newTx = {
+        id: Date.now(),
+        type: document.getElementById("type").value,
+        description: document.getElementById("description").value,
+        amount: parseFloat(document.getElementById("amount").value),
+        date: document.getElementById("date").value
+      };
+
+      transactions.push(newTx);
+      localStorage.setItem("myTransactions", JSON.stringify(transactions));
+
+      renderTable();
+
+      document.getElementById("description").value = "";
+      document.getElementById("amount").value = "";
+    });
+
+    function deleteTx(id) {
+      transactions = transactions.filter(function (t) { return t.id !== id; });
+      localStorage.setItem("myTransactions", JSON.stringify(transactions));
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById("txTableBody");
+      const emptyMsg = document.getElementById("emptyMsg");
+
+      if (transactions.length === 0) {
+        tbody.innerHTML = "";
+        emptyMsg.style.display = "block";
+        return;
+      }
+      emptyMsg.style.display = "none";
+
+      let rowsHtml = "";
+      for (let i = 0; i < transactions.length; i++) {
+        const t = transactions[i];
+        const amountColor = t.type === "income" ? "text-success" : "text-danger";
+        const sign = t.type === "income" ? "+" : "-";
+
+        rowsHtml += "<tr>" +
+          "<td>" + t.date + "</td>" +
+          "<td>" + t.description + "</td>" +
+          "<td>" + t.type + "</td>" +
+          "<td class='text-end " + amountColor + "'>" + sign + t.amount.toFixed(2) + "</td>" +
+          "<td class='text-end'><button class='btn btn-sm btn-outline-danger' onclick='deleteTx(" + t.id + ")'>Delete</button></td>" +
+          "</tr>";
+      }
+      tbody.innerHTML = rowsHtml;
+    }
+</script>
+</body>
+</html>
